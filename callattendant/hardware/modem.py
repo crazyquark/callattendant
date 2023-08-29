@@ -63,6 +63,7 @@ GET_MODEM_SETTINGS = "AT&V"
 DISABLE_ECHO_COMMANDS = "ATE0"
 ENABLE_ECHO_COMMANDS = "ATE1"
 ENABLE_FORMATTED_CID = "AT+VCID=1"
+ENABLE_UNFORMATTED_CID = "AT+VCID=2"
 ENABLE_VERBOSE_CODES = "ATV1"
 DISABLE_SILENCE_DETECTION = "AT+VSD=128,0"
 DISABLE_SILENCE_DETECTION_CONEXANT = "AT+VSD=0,0"
@@ -201,6 +202,7 @@ class Modem(object):
         TIME = "TIME".encode("utf-8")
         NAME = "NAME".encode("utf-8")
         NMBR = "NMBR".encode("utf-8")
+        MESG = "MESG".encode("utf-8")
 
         # Testing variables
         dev_mode = self.config["ENV"] == "development"
@@ -249,6 +251,26 @@ class Modem(object):
                             call_record['TIME'] = now.strftime("%H%M")
                         if not call_record.get('NAME'):
                             call_record['NAME'] = "Unknown"
+                    elif call_record.get('MESG'):
+                        # Caller ID is implemented with one of three AT commands as defined in the following sections:
+                        # 1. +VCID=n for MT3334xx and MT5634xx modems
+                        # 2. *Cn for MT2834xx modems
+                        # 3. #CID= n for MT5600xx modems
+                        # Command: +VCID=n <Enter>
+                        # Values: n=0, 1, 2
+                        # Default: 0
+                        # Result Codes: OK if the command is accepted; ERROR if the parameter value is out of range.
+                        # Description: The Caller ID +VCID=n command lets you control the reporting of and presentation of Caller ID services
+                        # data. The Caller ID services are currently supported in the U.S. and Canada, in one of two data formats: either SDM
+                        # (Single Data Message) or MDM (Multiple Data Message) format. The MultiModem can detect and report any U.S.
+                        # Caller ID data after the first ring. The minimum Caller ID data reported includes the date and time of the call, and an
+                        # associated caller code (i.e., the caller’s telephone number).
+                        # https://www.multitech.com/documents/publications/manuals/s0000206.pdf
+                        # MESG=041230383239313532313037353630353737363043
+                        # 16:22
+                        # MESG=041230383239313532323037353630353737363042
+                        # from hex: 082915220756057760B
+                        pass
                     else:
                         # Othewise, throw away any partial data without a number
                         # that was received between RINGs/timeouts.
@@ -280,6 +302,9 @@ class Modem(object):
                     elif NMBR in modem_data:
                         items = decode(modem_data).split('=')
                         call_record['NMBR'] = items[1].strip()
+                    elif MESG in modem_data:
+                        items = decode(modem_data).split('=')
+                        call_record['MESG'] = items[1].strip()
 
                 # Test for a complete set of caller ID data
                 # https://stackoverflow.com/questions/1285911/how-do-i-check-that-multiple-keys-are-in-a-dict-in-a-single-pass
@@ -822,9 +847,12 @@ class Modem(object):
                 print("Error: Unable set response in verbose form")
             if not self._send(DISABLE_ECHO_COMMANDS):
                 print("Error: Failed to disable local echo mode")
-            if not self._send(ENABLE_FORMATTED_CID):
-                print("Error: Failed to enable formatted caller report.")
-
+            if self.config.get("CID_UNFORMATTED"):
+                if not self._send(ENABLE_UNFORMATTED_CID):
+                    print("Error: Failed to enable unformatted caller report.")
+            else:
+                if not self._send(ENABLE_FORMATTED_CID):
+                    print("Error: Failed to enable formatted caller report.")
             # Save these settings to a profile
             if not self._send("AT&W0"):
                 print("Error: Failed to store profile.")

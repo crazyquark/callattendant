@@ -25,6 +25,8 @@ default_config = {
     "DEBUG": False,
     "TESTING": False,
 
+    "CID_UNFORMATTED": False,
+
     "DATABASE": "callattendant.db",
     "SCREENING_MODE": ("whitelist", "blacklist"),
 
