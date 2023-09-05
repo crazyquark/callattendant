@@ -252,25 +252,7 @@ class Modem(object):
                         if not call_record.get('NAME'):
                             call_record['NAME'] = "Unknown"
                     elif call_record.get('MESG'):
-                        # Caller ID is implemented with one of three AT commands as defined in the following sections:
-                        # 1. +VCID=n for MT3334xx and MT5634xx modems
-                        # 2. *Cn for MT2834xx modems
-                        # 3. #CID= n for MT5600xx modems
-                        # Command: +VCID=n <Enter>
-                        # Values: n=0, 1, 2
-                        # Default: 0
-                        # Result Codes: OK if the command is accepted; ERROR if the parameter value is out of range.
-                        # Description: The Caller ID +VCID=n command lets you control the reporting of and presentation of Caller ID services
-                        # data. The Caller ID services are currently supported in the U.S. and Canada, in one of two data formats: either SDM
-                        # (Single Data Message) or MDM (Multiple Data Message) format. The MultiModem can detect and report any U.S.
-                        # Caller ID data after the first ring. The minimum Caller ID data reported includes the date and time of the call, and an
-                        # associated caller code (i.e., the caller’s telephone number).
-                        # https://www.multitech.com/documents/publications/manuals/s0000206.pdf
-                        # MESG=041230383239313532313037353630353737363043
-                        # 16:22
-                        # MESG=041230383239313532323037353630353737363042
-                        # from hex: 082915220756057760B
-                        pass
+                        self._parse_mesg(call_record['MESG'])
                     else:
                         # Othewise, throw away any partial data without a number
                         # that was received between RINGs/timeouts.
@@ -321,6 +303,38 @@ class Modem(object):
             if dev_mode:
                 print("-> Closing modem log file")
                 logfile.close()
+
+    def _parse_mesg(self, mesg):
+        # AT+VCID=2
+        # https://www.multitech.com/documents/publications/manuals/s0000206.pdf
+        # Caller ID is enabled with unformatted data presented to the PC. The data includes
+        # Message Type byte, Message Length, date, time, caller code (telephone number),
+        # subscriber’s name, and Message Checksum byte.
+        # The reported data is displayed in ASCII hex as printable numbers.
+        # MESG=041230383239313532313037353630353737363043
+        # 16:22
+        # MESG=041230383239313532323037353630353737363042
+        # from hex: 082915220756057760B
+        mesg_bytes = bytes.fromhex(mesg)
+        mesg_type = mesg_bytes[0]
+        assert(mesg_type == 4)
+        mesg_len = mesg_bytes[1]
+        # allow for 3 extra bytes : type, len and checksum
+        bytes_len = len(mesg_bytes)
+        assert(mesg_len + 3 == bytes_len)
+
+        mesg_date = mesg_bytes[2:6]
+        mesg_time = mesg_bytes[6:10]
+
+        mesg_tel_number = bytes.decode(mesg_bytes[10:bytes_len - 1])
+        mesg_cksum = mesg_bytes[bytes_len - 1]
+
+        print(mesg_date)
+        print(mesg_time)
+
+        print(mesg_len)
+        print(mesg_tel_number)
+        print(mesg_cksum)
 
     def pick_up(self):
         """
