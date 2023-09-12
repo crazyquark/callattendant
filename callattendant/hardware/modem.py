@@ -251,8 +251,6 @@ class Modem(object):
                             call_record['TIME'] = now.strftime("%H%M")
                         if not call_record.get('NAME'):
                             call_record['NAME'] = "Unknown"
-                    elif call_record.get('MESG'):
-                        self._parse_mesg(call_record['MESG'])
                     else:
                         # Othewise, throw away any partial data without a number
                         # that was received between RINGs/timeouts.
@@ -286,7 +284,7 @@ class Modem(object):
                         call_record['NMBR'] = items[1].strip()
                     elif MESG in modem_data:
                         items = decode(modem_data).split('=')
-                        call_record['MESG'] = items[1].strip()
+                        self._parse_mesg(items[1].strip(), call_record)
 
                 # Test for a complete set of caller ID data
                 # https://stackoverflow.com/questions/1285911/how-do-i-check-that-multiple-keys-are-in-a-dict-in-a-single-pass
@@ -304,7 +302,7 @@ class Modem(object):
                 print("-> Closing modem log file")
                 logfile.close()
 
-    def _parse_mesg(self, mesg):
+    def _parse_mesg(self, mesg, call_record):
         # AT+VCID=2
         # https://www.multitech.com/documents/publications/manuals/s0000206.pdf
         # Caller ID is enabled with unformatted data presented to the PC. The data includes
@@ -323,18 +321,21 @@ class Modem(object):
         bytes_len = len(mesg_bytes)
         assert(mesg_len + 3 == bytes_len)
 
-        mesg_date = [int(mesg_bytes[2:4]), int(mesg_bytes[4:6])] # month, day
-        mesg_time = [int(mesg_bytes[6:8]), int(mesg_bytes[8:10])] # hour, minute
+        call_record['DATE'] = mesg_bytes[2:6]
+        call_record['TIME'] = mesg_bytes[6:10]
 
         mesg_tel_number = bytes.decode(mesg_bytes[10:bytes_len - 1])
-        mesg_cksum = mesg_bytes[bytes_len - 1]
+        # mesg_cksum = mesg_bytes[bytes_len - 1]
 
-        print(mesg_date)
-        print(mesg_time)
+        call_record['NMBR'] = mesg_tel_number
 
-        print(mesg_len)
-        print(mesg_tel_number)
-        print(mesg_cksum)
+        now = datetime.now()
+        if not call_record.get('DATE'):
+            call_record['DATE'] = now.strftime("%m%d")
+        if not call_record.get('TIME'):
+            call_record['TIME'] = now.strftime("%H%M")
+        if not call_record.get('NAME'):
+            call_record['NAME'] = "Unknown"
 
     def pick_up(self):
         """
