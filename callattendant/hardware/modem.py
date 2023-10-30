@@ -321,8 +321,8 @@ class Modem(object):
         bytes_len = len(mesg_bytes)
         assert(mesg_len + 3 == bytes_len)
 
-        call_record['DATE'] = mesg_bytes[2:6]
-        call_record['TIME'] = mesg_bytes[6:10]
+        call_record['DATE'] = bytes.decode(mesg_bytes[2:6])
+        call_record['TIME'] = bytes.decode(mesg_bytes[6:10])
 
         mesg_tel_number = bytes.decode(mesg_bytes[10:bytes_len - 1])
         # mesg_cksum = mesg_bytes[bytes_len - 1]
